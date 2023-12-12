@@ -1,10 +1,14 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const socketIo = require('socket.io');
+const http = require('http');
 const cors = require('cors');
 
 const app = express();
-const port = 3000;
+const server = http.createServer(app);
+const io = socketIo(server);
+const port = 3001;
 
 app.use(bodyParser.json());
 app.use(cors());
@@ -44,6 +48,15 @@ function calculateConfidence(ups, downs) {
 
   return (left - right) / under;
 }
+
+// Socket.io connection setup
+io.on('connection', (socket) => {
+  console.log('New client connected');
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
+});
 
 // Route to add a new teacher
 app.post('/api/teachers', async (req, res) => {
@@ -102,6 +115,10 @@ app.patch('/api/teachers/:id/vote', async (req, res) => {
     teacher.confidence = calculateConfidence(teacher.upvotes, teacher.downvotes);
   
     await teacher.save();
+
+    // Emitting updated teacher data to all connected clients
+    io.emit('updateTeacher', teacher);
+
     res.json(teacher);
   } catch (error) {
     res.status(500).json({ message: error.message });
